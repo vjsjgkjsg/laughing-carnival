@@ -1,0 +1,860 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>Sports Analytics</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+  :root{
+    --bg: var(--tg-theme-bg-color, #0e1410);
+    --bg-secondary: var(--tg-theme-secondary-bg-color, #161d18);
+    --text: var(--tg-theme-text-color, #eef2ef);
+    --hint: var(--tg-theme-hint-color, #8a9890);
+    --link: var(--tg-theme-link-color, #4fd17b);
+    --accent: #1fae5e;
+    --accent-2: #2bd97a;
+    --warn: #d9a441;
+    --bad: #d9544a;
+    --card: var(--tg-theme-bg-color, #0e1410);
+    --line: rgba(255,255,255,0.08);
+    --radius: 16px;
+    --mono: ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color: transparent;}
+  html,body{margin:0; padding:0; background:var(--bg); color:var(--text); font-family:var(--sans); height:100%; overflow-x:hidden;}
+  body{padding-bottom:78px;}
+  ::selection{background:var(--accent); color:#fff;}
+  .hidden{display:none !important;}
+
+  /* ---------- Top bar ---------- */
+  .topbar{position:sticky; top:0; z-index:20; background:var(--bg); padding:14px 16px 8px; border-bottom:1px solid var(--line);}
+  .brand{display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;}
+  .brand h1{font-size:18px; margin:0; font-weight:800; letter-spacing:-0.02em;}
+  .brand h1 span{color:var(--accent-2);}
+  .plan-pill{font-family:var(--mono); font-size:11px; padding:4px 9px; border-radius:20px; background:var(--bg-secondary); color:var(--hint); border:1px solid var(--line);}
+
+  .search-row{display:flex; gap:8px; margin-bottom:10px;}
+  .search-box{flex:1; position:relative;}
+  .search-box input{width:100%; padding:10px 12px; border-radius:12px; border:1px solid var(--line); background:var(--bg-secondary); color:var(--text); font-size:14px; outline:none;}
+  .search-box input::placeholder{color:var(--hint);}
+
+  .tabs{display:flex; gap:6px; overflow-x:auto; padding-bottom:10px; scrollbar-width:none;}
+  .tabs::-webkit-scrollbar{display:none;}
+  .tab-chip{flex:0 0 auto; padding:7px 13px; border-radius:20px; font-size:13px; font-weight:600; background:var(--bg-secondary); color:var(--hint); border:1px solid var(--line); white-space:nowrap;}
+  .tab-chip.active{background:var(--accent); color:#06140c; border-color:var(--accent);}
+
+  .days-row{display:flex; gap:6px; margin-top:8px;}
+  .day-chip{padding:5px 10px; border-radius:10px; font-size:12px; background:transparent; color:var(--hint); border:1px solid var(--line);}
+  .day-chip.active{color:var(--accent-2); border-color:var(--accent-2);}
+
+  /* ---------- Screens ---------- */
+  .screen{padding:14px 16px 8px; min-height:60vh;}
+
+  /* ---------- Match list ---------- */
+  .day-divider{font-family:var(--mono); font-size:11px; color:var(--hint); margin:18px 2px 8px; text-transform:uppercase; letter-spacing:.06em;}
+  .match-card{background:var(--bg-secondary); border:1px solid var(--line); border-radius:var(--radius); padding:13px 14px; margin-bottom:9px; display:flex; align-items:center; justify-content:space-between; gap:10px;}
+  .match-card:active{transform:scale(0.985);}
+  .match-main{flex:1; min-width:0;}
+  .match-league{font-size:11px; color:var(--hint); margin-bottom:4px; display:flex; align-items:center; gap:6px;}
+  .match-teams{font-size:14.5px; font-weight:700; line-height:1.35;}
+  .match-time{font-family:var(--mono); font-size:13px; color:var(--accent-2); text-align:right; flex:0 0 auto; min-width:48px;}
+  .odds-dot{width:6px; height:6px; border-radius:50%; background:var(--accent-2); display:inline-block;}
+  .odds-dot.off{background:var(--hint); opacity:.4;}
+
+  .empty-state{text-align:center; padding:48px 20px; color:var(--hint);}
+  .empty-state .emoji{font-size:38px; margin-bottom:10px;}
+  .empty-state h3{color:var(--text); font-size:16px; margin:0 0 6px;}
+  .empty-state p{font-size:13.5px; line-height:1.5; margin:0 0 16px;}
+  .btn{display:inline-block; padding:10px 18px; border-radius:12px; background:var(--accent); color:#06140c; font-weight:700; font-size:14px; border:none;}
+  .btn.secondary{background:var(--bg-secondary); color:var(--text); border:1px solid var(--line);}
+  .btn.block{display:block; width:100%; text-align:center;}
+
+  .skeleton{background:linear-gradient(90deg, var(--bg-secondary) 25%, rgba(255,255,255,0.06) 37%, var(--bg-secondary) 63%); background-size:400% 100%; animation:shimmer 1.4s infinite; border-radius:var(--radius); height:62px; margin-bottom:9px;}
+  @keyframes shimmer{0%{background-position:100% 50%} 100%{background-position:0 50%}}
+
+  /* ---------- Match detail ---------- */
+  .detail-header{display:flex; align-items:center; gap:10px; margin-bottom:14px;}
+  .back-btn{width:34px; height:34px; border-radius:10px; background:var(--bg-secondary); border:1px solid var(--line); color:var(--text); font-size:16px; display:flex; align-items:center; justify-content:center;}
+  .detail-title{flex:1;}
+  .detail-title .vs{font-size:16px; font-weight:800;}
+  .detail-title .meta{font-size:12px; color:var(--hint); margin-top:2px;}
+  .star-btn{width:34px; height:34px; border-radius:10px; background:var(--bg-secondary); border:1px solid var(--line); font-size:16px; display:flex; align-items:center; justify-content:center;}
+  .star-btn.active{color:var(--warn); border-color:var(--warn);}
+
+  .seg{display:flex; background:var(--bg-secondary); border-radius:12px; padding:3px; margin-bottom:14px; border:1px solid var(--line);}
+  .seg button{flex:1; padding:8px; border-radius:9px; background:transparent; border:none; color:var(--hint); font-size:13px; font-weight:700;}
+  .seg button.active{background:var(--accent); color:#06140c;}
+
+  .section{background:var(--bg-secondary); border:1px solid var(--line); border-radius:var(--radius); padding:16px; margin-bottom:12px;}
+  .section h3{font-size:12px; text-transform:uppercase; letter-spacing:.06em; color:var(--hint); margin:0 0 12px; display:flex; align-items:center; gap:6px;}
+
+  .donut-row{display:flex; align-items:center; gap:18px;}
+  .donut{width:96px; height:96px; border-radius:50%; flex:0 0 auto; position:relative; display:flex; align-items:center; justify-content:center;}
+  .donut::before{content:''; position:absolute; inset:12px; border-radius:50%; background:var(--bg-secondary);}
+  .donut .center{position:relative; font-family:var(--mono); font-size:12px; color:var(--hint); text-align:center; z-index:1;}
+  .legend{flex:1; display:flex; flex-direction:column; gap:7px;}
+  .legend-row{display:flex; align-items:center; gap:8px; font-size:13px;}
+  .legend-dot{width:9px; height:9px; border-radius:50%; flex:0 0 auto;}
+  .legend-label{flex:1; color:var(--hint);}
+  .legend-val{font-family:var(--mono); font-weight:700;}
+
+  .bar-row{margin-bottom:10px;}
+  .bar-row:last-child{margin-bottom:0;}
+  .bar-row .lbl{display:flex; justify-content:space-between; font-size:12.5px; margin-bottom:5px;}
+  .bar-row .lbl b{font-family:var(--mono);}
+  .bar-track{height:7px; border-radius:4px; background:rgba(255,255,255,0.07); overflow:hidden;}
+  .bar-fill{height:100%; border-radius:4px; background:var(--accent);}
+
+  .stat-grid{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
+  .stat-box{background:rgba(255,255,255,0.03); border-radius:11px; padding:10px;}
+  .stat-box .k{font-size:11px; color:var(--hint); margin-bottom:3px;}
+  .stat-box .v{font-family:var(--mono); font-size:16px; font-weight:700;}
+
+  .form-row{display:flex; align-items:center; justify-content:space-between; padding:8px 0; border-bottom:1px solid var(--line);}
+  .form-row:last-child{border-bottom:none;}
+  .form-row .name{font-size:13px; font-weight:600; flex:1;}
+  .form-dots{display:flex; gap:4px;}
+  .fd{width:20px; height:20px; border-radius:6px; display:flex; align-items:center; justify-content:center; font-size:10px; font-weight:800; color:#06140c;}
+  .fd.W{background:var(--accent-2);} .fd.D{background:var(--warn);} .fd.L{background:var(--bad); color:#fff;} .fd.x{background:rgba(255,255,255,0.08); color:var(--hint);}
+
+  .reco{display:flex; gap:10px;}
+  .reco-card{flex:1; background:rgba(31,174,94,0.1); border:1px solid rgba(31,174,94,0.3); border-radius:12px; padding:11px;}
+  .reco-card .k{font-size:11px; color:var(--accent-2); margin-bottom:4px;}
+  .reco-card .v{font-size:14px; font-weight:800;}
+
+  .quality-badge{display:inline-flex; align-items:center; gap:6px; font-size:12px; padding:6px 10px; border-radius:10px; font-weight:700;}
+  .quality-badge.high{background:rgba(43,217,122,0.15); color:var(--accent-2);}
+  .quality-badge.mid{background:rgba(217,164,65,0.15); color:var(--warn);}
+  .quality-badge.low{background:rgba(217,84,74,0.15); color:#ff8a80;}
+
+  .no-data-block{text-align:center; padding:30px 16px;}
+  .no-data-block .emoji{font-size:34px; margin-bottom:8px;}
+  .no-data-block h3{font-size:15px; margin:0 0 6px;}
+  .no-data-block p{font-size:13px; color:var(--hint); line-height:1.5; margin:0 0 16px;}
+
+  /* ---------- Odds table ---------- */
+  .odds-table{width:100%; border-collapse:collapse; font-size:13px;}
+  .odds-table th{text-align:left; font-size:10.5px; color:var(--hint); text-transform:uppercase; padding:6px 4px; font-weight:600;}
+  .odds-table td{padding:9px 4px; border-top:1px solid var(--line); font-family:var(--mono);}
+  .odds-table td.bm{font-family:var(--sans); font-size:12.5px;}
+  .odds-table td.best{color:var(--accent-2); font-weight:800; position:relative;}
+  .odds-table td.best::after{content:'●'; font-size:6px; margin-left:4px; vertical-align:middle;}
+  .margin-note{margin-top:12px; font-size:12px; color:var(--hint); display:flex; justify-content:space-between; border-top:1px dashed var(--line); padding-top:10px;}
+
+  /* ---------- Profile ---------- */
+  .profile-head{display:flex; align-items:center; gap:14px; margin-bottom:16px;}
+  .avatar{width:54px; height:54px; border-radius:16px; background:linear-gradient(135deg, var(--accent), #0a3d1f); display:flex; align-items:center; justify-content:center; font-size:22px; font-weight:800; color:#fff;}
+  .profile-name{font-size:17px; font-weight:800;}
+  .profile-id{font-family:var(--mono); font-size:11.5px; color:var(--hint);}
+
+  .limit-bar-wrap{margin-top:10px;}
+  .limit-bar-track{height:10px; border-radius:6px; background:rgba(255,255,255,0.07); overflow:hidden;}
+  .limit-bar-fill{height:100%; background:linear-gradient(90deg, var(--accent), var(--accent-2)); border-radius:6px; transition:width .3s;}
+  .limit-bar-fill.full{background:var(--bad);}
+  .limit-label{display:flex; justify-content:space-between; font-size:12px; color:var(--hint); margin-top:6px;}
+
+  .hist-item, .fav-item{background:rgba(255,255,255,0.03); border-radius:12px; padding:11px 14px; margin-bottom:8px; position:relative; overflow:hidden;}
+  .hist-item .top-row{display:flex; justify-content:space-between; font-size:13.5px; font-weight:700; margin-bottom:4px;}
+  .hist-item .sub-row{display:flex; justify-content:space-between; font-size:12px; color:var(--hint); font-family:var(--mono);}
+
+  .fav-item{display:flex; align-items:center; justify-content:space-between; touch-action:pan-y; transition:transform .2s;}
+  .fav-item .fav-bg{position:absolute; inset:0; background:var(--bad); display:flex; align-items:center; justify-content:flex-end; padding-right:18px; color:#fff; font-weight:700; font-size:13px;}
+
+  .filters-row{display:flex; gap:6px; margin-bottom:12px;}
+  .filter-chip{padding:6px 12px; border-radius:10px; font-size:12px; background:var(--bg-secondary); color:var(--hint); border:1px solid var(--line);}
+  .filter-chip.active{color:var(--accent-2); border-color:var(--accent-2);}
+
+  /* ---------- Tariffs ---------- */
+  .plan-card{background:var(--bg-secondary); border:1px solid var(--line); border-radius:var(--radius); padding:16px; margin-bottom:10px; position:relative;}
+  .plan-card.current{border-color:var(--accent);}
+  .plan-card .cur-badge{position:absolute; top:-9px; right:14px; background:var(--accent); color:#06140c; font-size:10.5px; font-weight:800; padding:3px 9px; border-radius:8px;}
+  .plan-card .ph{display:flex; justify-content:space-between; align-items:baseline; margin-bottom:8px;}
+  .plan-card .pname{font-size:16px; font-weight:800;}
+  .plan-card .pprice{font-family:var(--mono); font-size:14px; color:var(--accent-2);}
+  .plan-card ul{margin:0 0 12px; padding:0 0 0 18px; font-size:13px; color:var(--hint); line-height:1.7;}
+
+  /* ---------- Footer / bottom nav ---------- */
+  .disclaimer{font-size:10.5px; color:var(--hint); text-align:center; line-height:1.5; padding:16px 24px 6px; opacity:.8;}
+
+  .bottomnav{position:fixed; bottom:0; left:0; right:0; z-index:30; background:var(--bg); border-top:1px solid var(--line); display:flex; padding:6px 6px calc(6px + env(safe-area-inset-bottom));}
+  .nav-btn{flex:1; display:flex; flex-direction:column; align-items:center; gap:2px; padding:6px 0; color:var(--hint); font-size:10.5px; font-weight:600; background:transparent; border:none;}
+  .nav-btn .ic{font-size:19px;}
+  .nav-btn.active{color:var(--accent-2);}
+  .nav-badge{position:absolute; transform:translate(10px,-9px); background:var(--bad); color:#fff; font-size:9px; min-width:14px; height:14px; border-radius:7px; display:flex; align-items:center; justify-content:center; padding:0 3px;}
+
+  .toast{position:fixed; bottom:90px; left:50%; transform:translateX(-50%); background:var(--bg-secondary); border:1px solid var(--line); color:var(--text); padding:10px 16px; border-radius:12px; font-size:13px; z-index:50; opacity:0; transition:opacity .25s, transform .25s;}
+  .toast.show{opacity:1; transform:translateX(-50%) translateY(-6px);}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand">
+    <h1>⚽ Sports<span>Analytics</span></h1>
+    <div class="plan-pill" id="planPill">…</div>
+  </div>
+  <div class="search-row">
+    <div class="search-box">
+      <input id="searchInput" type="text" placeholder="Поиск команды, например «Реал»…" autocomplete="off">
+    </div>
+  </div>
+  <div class="tabs" id="sportTabs"></div>
+  <div class="days-row" id="daysRow"></div>
+</div>
+
+<div id="screenMatches" class="screen"></div>
+<div id="screenDetail" class="screen hidden"></div>
+<div id="screenProfile" class="screen hidden"></div>
+<div id="screenPlans" class="screen hidden"></div>
+
+<div class="disclaimer" id="footerDisclaimer">
+  🔞 18+ · Прогнозы основаны на статистической модели (Пуассон + Монте-Карло) и <b>не гарантируют результат</b>.
+  Это не финансовый совет. Играйте ответственно.
+</div>
+
+<div class="bottomnav">
+  <button class="nav-btn active" data-tab="matches"><span class="ic">🏟</span>Матчи</button>
+  <button class="nav-btn" data-tab="profile"><span class="ic">👤</span>Профиль</button>
+  <button class="nav-btn" data-tab="plans"><span class="ic">💎</span>Тарифы</button>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function(){
+"use strict";
+
+const tg = window.Telegram?.WebApp;
+if (tg) { tg.ready(); tg.expand(); }
+
+function applyTheme(){
+  if (!tg) return;
+  document.documentElement.style.setProperty('color-scheme', tg.colorScheme || 'dark');
+}
+applyTheme();
+tg?.onEvent?.('themeChanged', applyTheme);
+
+function haptic(type){
+  try{
+    if (type === 'select') tg?.HapticFeedback?.selectionChanged();
+    else if (type === 'success') tg?.HapticFeedback?.notificationOccurred('success');
+    else if (type === 'error') tg?.HapticFeedback?.notificationOccurred('error');
+    else tg?.HapticFeedback?.impactOccurred('light');
+  }catch(e){}
+}
+
+function toast(msg){
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  setTimeout(()=>el.classList.remove('show'), 2200);
+}
+
+// ---------- API ----------
+const API_BASE = ''; // тот же origin, что отдаёт этот index.html
+
+async function api(path, opts={}){
+  const headers = Object.assign({
+    'X-Telegram-Init-Data': tg?.initData || '',
+    'Content-Type': 'application/json',
+  }, opts.headers || {});
+  const res = await fetch(API_BASE + path, Object.assign({}, opts, {headers}));
+  let data = null;
+  try{ data = await res.json(); }catch(e){}
+  if (!res.ok){
+    const err = new Error((data && data.error) || ('http_' + res.status));
+    err.status = res.status; err.data = data;
+    throw err;
+  }
+  return data;
+}
+
+// ---------- State ----------
+const I18N = {
+  ru: {
+    sport_football: '⚽ Футбол', sport_basketball: '🏀 Баскетбол', sport_hockey: '🏒 Хоккей', sport_tennis: '🎾 Теннис',
+    today: 'Сегодня', d3: '3 дня', d7: '7 дней', d14: '14 дней',
+    no_matches_title: 'Матчей не найдено', no_matches_text: 'На этот период нет линий букмекеров — увеличьте срок или выберите другой вид спорта.',
+    no_search_title: 'Ничего не найдено', no_search_text: 'Проверьте написание или попробуйте часть названия команды.',
+    clear_search: 'Сбросить поиск',
+    insufficient_title: 'Недостаточно данных для прогноза',
+    insufficient_text: 'Не нашли статистику по этим командам в базе — матч слишком новый, товарищеский или редкая лига. Лимит прогнозов не списан.',
+    pick_another: 'Выбрать другой матч',
+    limit_title: 'Дневной лимит исчерпан',
+    upgrade: 'Повысить тариф',
+  }
+};
+const t = (k) => I18N.ru[k] || k;
+
+const state = {
+  sport: 'football',
+  days: 3,
+  query: '',
+  matches: [],
+  loading: false,
+  me: null,
+  favorites: new Set(),
+  currentMatch: null,
+  detailTab: 'prediction',
+};
+
+const SPORTS = [
+  {key:'football', label:I18N.ru.sport_football},
+  {key:'basketball', label:I18N.ru.sport_basketball},
+  {key:'hockey', label:I18N.ru.sport_hockey},
+  {key:'tennis', label:I18N.ru.sport_tennis},
+];
+const DAYS = [{v:1,l:t('today')},{v:3,l:t('d3')},{v:7,l:t('d7')},{v:14,l:t('d14')}];
+
+// ---------- Render: top tabs ----------
+function renderSportTabs(){
+  const el = document.getElementById('sportTabs');
+  el.innerHTML = SPORTS.map(s => `<button class="tab-chip ${s.key===state.sport?'active':''}" data-sport="${s.key}">${s.label}</button>`).join('');
+  el.querySelectorAll('.tab-chip').forEach(btn=>{
+    btn.onclick = () => { haptic('select'); state.sport = btn.dataset.sport; renderSportTabs(); loadMatches(); };
+  });
+}
+function renderDaysRow(){
+  const el = document.getElementById('daysRow');
+  el.innerHTML = DAYS.map(d => `<button class="day-chip ${d.v===state.days?'active':''}" data-days="${d.v}">${d.l}</button>`).join('');
+  el.querySelectorAll('.day-chip').forEach(btn=>{
+    btn.onclick = () => { haptic('select'); state.days = parseInt(btn.dataset.days,10); renderDaysRow(); loadMatches(); };
+  });
+}
+
+// ---------- Matches list ----------
+let searchDebounce = null;
+document.getElementById('searchInput').addEventListener('input', (e)=>{
+  clearTimeout(searchDebounce);
+  const v = e.target.value;
+  searchDebounce = setTimeout(()=>{ state.query = v.trim(); loadMatches(); }, 380);
+});
+
+function skeletons(n){
+  return `<div>${Array.from({length:n}).map(()=>`<div class="skeleton"></div>`).join('')}</div>`;
+}
+
+async function loadMatches(){
+  state.loading = true;
+  const root = document.getElementById('screenMatches');
+  root.innerHTML = skeletons(5);
+  try{
+    const data = await api(`/api/matches?sport=${encodeURIComponent(state.sport)}&days=${state.days}&q=${encodeURIComponent(state.query)}`);
+    state.matches = data.matches;
+    renderMatches();
+  }catch(e){
+    root.innerHTML = `<div class="empty-state"><div class="emoji">⚠️</div><h3>Не удалось загрузить матчи</h3><p>${escapeHtml(e.message)}</p><button class="btn" id="retryBtn">Повторить</button></div>`;
+    document.getElementById('retryBtn').onclick = loadMatches;
+  }
+  state.loading = false;
+}
+
+function groupByDay(matches){
+  const groups = {};
+  for (const m of matches){
+    const d = m.commence_time_msk ? m.commence_time_msk.slice(0,10) : 'unknown';
+    (groups[d] = groups[d] || []).push(m);
+  }
+  return groups;
+}
+function dayLabel(iso){
+  if (iso === 'unknown') return 'Дата уточняется';
+  const d = new Date(iso + 'T00:00:00');
+  const today = new Date(); today.setHours(0,0,0,0);
+  const diff = Math.round((d - today) / 86400000);
+  const wd = ['Вс','Пн','Вт','Ср','Чт','Пт','Сб'][d.getDay()];
+  const ds = d.toLocaleDateString('ru-RU', {day:'2-digit', month:'2-digit'});
+  if (diff === 0) return `${ds} (${wd}) · Сегодня`;
+  if (diff === 1) return `${ds} (${wd}) · Завтра`;
+  return `${ds} (${wd})`;
+}
+
+function renderMatches(){
+  const root = document.getElementById('screenMatches');
+  if (!state.matches.length){
+    const isSearch = !!state.query;
+    root.innerHTML = `<div class="empty-state">
+      <div class="emoji">${isSearch ? '🔍' : '😕'}</div>
+      <h3>${isSearch ? t('no_search_title') : t('no_matches_title')}</h3>
+      <p>${isSearch ? t('no_search_text') : t('no_matches_text')}</p>
+      ${isSearch ? `<button class="btn secondary" id="clearSearchBtn">${t('clear_search')}</button>` : ''}
+    </div>`;
+    if (isSearch) document.getElementById('clearSearchBtn').onclick = ()=>{
+      document.getElementById('searchInput').value=''; state.query=''; loadMatches();
+    };
+    return;
+  }
+  const groups = groupByDay(state.matches);
+  let html = '';
+  for (const day of Object.keys(groups).sort()){
+    html += `<div class="day-divider">${dayLabel(day)}</div>`;
+    for (const m of groups[day]){
+      const time = m.commence_time_msk ? m.commence_time_msk.slice(11,16) : '??:??';
+      html += `<div class="match-card" data-id="${m.id}">
+        <div class="match-main">
+          <div class="match-league"><span class="odds-dot ${m.has_odds?'':'off'}"></span>${escapeHtml(m.league||'')}</div>
+          <div class="match-teams">${escapeHtml(m.home_team)} — ${escapeHtml(m.away_team)}</div>
+        </div>
+        <div class="match-time">${time}</div>
+      </div>`;
+    }
+  }
+  root.innerHTML = html;
+  root.querySelectorAll('.match-card').forEach(card=>{
+    card.onclick = ()=>{
+      haptic('select');
+      const m = state.matches.find(x=>x.id===card.dataset.id);
+      openMatch(m);
+    };
+  });
+}
+
+function escapeHtml(s){
+  return (s||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+// ---------- Match detail ----------
+async function openMatch(m){
+  state.currentMatch = m;
+  state.detailTab = 'prediction';
+  switchScreen('detail');
+  await refreshFavorites();
+  renderDetailShell();
+  loadPrediction();
+}
+
+function renderDetailShell(){
+  const m = state.currentMatch;
+  const root = document.getElementById('screenDetail');
+  const isFav = state.favorites.has(m.id);
+  root.innerHTML = `
+    <div class="detail-header">
+      <button class="back-btn" id="backBtn">‹</button>
+      <div class="detail-title">
+        <div class="vs">${escapeHtml(m.home_team)} 🆚 ${escapeHtml(m.away_team)}</div>
+        <div class="meta">${escapeHtml(m.league||'')} · ${m.commence_time_msk ? new Date(m.commence_time_msk).toLocaleString('ru-RU',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}) : ''}</div>
+      </div>
+      <button class="star-btn ${isFav?'active':''}" id="favBtn">${isFav?'★':'☆'}</button>
+    </div>
+    <div class="seg">
+      <button data-tab="prediction" class="${state.detailTab==='prediction'?'active':''}">Прогноз</button>
+      <button data-tab="odds" class="${state.detailTab==='odds'?'active':''}">Коэффициенты</button>
+    </div>
+    <div id="detailBody">${skeletons(3)}</div>
+  `;
+  document.getElementById('backBtn').onclick = ()=>{ haptic(); switchScreen('matches'); };
+  document.getElementById('favBtn').onclick = toggleFavoriteCurrent;
+  root.querySelectorAll('.seg button').forEach(b=>{
+    b.onclick = ()=>{
+      haptic('select');
+      state.detailTab = b.dataset.tab;
+      renderDetailShell();
+      if (state.detailTab==='prediction') loadPrediction(); else loadOdds();
+    };
+  });
+}
+
+async function toggleFavoriteCurrent(){
+  const m = state.currentMatch;
+  try{
+    const res = await api(`/api/favorites/${encodeURIComponent(m.id)}/toggle`, {method:'POST'});
+    haptic(res.added ? 'success' : 'select');
+    if (res.added) state.favorites.add(m.id); else state.favorites.delete(m.id);
+    document.getElementById('favBtn').classList.toggle('active', res.added);
+    document.getElementById('favBtn').textContent = res.added ? '★' : '☆';
+    toast(res.added ? 'Добавлено в избранное' : 'Удалено из избранного');
+  }catch(e){ toast('Ошибка: ' + e.message); }
+}
+
+async function refreshFavorites(){
+  try{
+    const data = await api('/api/favorites');
+    state.favorites = new Set(data.favorites.map(f=>f.id));
+  }catch(e){}
+}
+
+async function loadPrediction(){
+  const body = document.getElementById('detailBody');
+  body.innerHTML = skeletons(3);
+  const m = state.currentMatch;
+  try{
+    const data = await api(`/api/match/${encodeURIComponent(m.id)}/predict`, {method:'POST'});
+    if (!data.has_prediction){
+      body.innerHTML = `<div class="section no-data-block">
+        <div class="emoji">😕</div>
+        <h3>${t('insufficient_title')}</h3>
+        <p>${t('insufficient_text')}</p>
+        <button class="btn secondary" id="pickOtherBtn">${t('pick_another')}</button>
+      </div>`;
+      document.getElementById('pickOtherBtn').onclick = ()=>switchScreen('matches');
+      return;
+    }
+    renderPrediction(data.prediction);
+    refreshMe();
+  }catch(e){
+    if (e.status === 403 && e.data?.error === 'limit_exceeded'){
+      body.innerHTML = `<div class="section no-data-block">
+        <div class="emoji">🔒</div>
+        <h3>${t('limit_title')}</h3>
+        <p>Использовано ${e.data.daily_used}/${e.data.daily_limit} прогнозов сегодня.</p>
+        <button class="btn" id="upgradeBtn">${t('upgrade')}</button>
+      </div>`;
+      document.getElementById('upgradeBtn').onclick = ()=>switchScreen('plans');
+      return;
+    }
+    body.innerHTML = `<div class="empty-state"><div class="emoji">⚠️</div><h3>Ошибка анализа</h3><p>${escapeHtml(e.message)}</p></div>`;
+  }
+}
+
+function donutGradient(parts){
+  // parts: [{color, pct}], рисуем conic-gradient
+  let acc = 0; const stops = [];
+  for (const p of parts){
+    const start = acc, end = acc + p.pct;
+    stops.push(`${p.color} ${start}% ${end}%`);
+    acc = end;
+  }
+  return `conic-gradient(${stops.join(', ')})`;
+}
+
+function qualityBadge(matchesCount){
+  if (matchesCount >= 10) return {cls:'high', label:'🔥 Высокое качество данных', sub:`${matchesCount} сыгранных матчей в базе`};
+  if (matchesCount >= 4) return {cls:'mid', label:'👍 Среднее качество данных', sub:`${matchesCount} сыгранных матчей в базе`};
+  return {cls:'low', label:'🤔 Ограниченные данные', sub:`всего ${matchesCount} матчей в базе`};
+}
+
+function formDots(form){
+  if (!form || form === '—') return `<span style="color:var(--hint);font-size:12px;">нет данных</span>`;
+  const chars = form.split('');
+  return `<div class="form-dots">${chars.map(c=>`<div class="fd ${['W','D','L'].includes(c)?c:'x'}">${c==='W'?'В':c==='D'?'Н':c==='L'?'П':'?'}</div>`).join('')}</div>`;
+}
+
+function renderPrediction(p){
+  const body = document.getElementById('detailBody');
+  const matchesUsed = p.data_quality === 'Высокое' ? 10 : 5; // приблизительно, для бейджа; точная цифра приходит как текст
+  const q = qualityBadge(p.data_quality === 'Высокое' ? 10 : (p.data_quality === 'Среднее' ? 6 : 2));
+
+  body.innerHTML = `
+    <div class="section">
+      <h3>🎯 Исход матча (1X2)</h3>
+      <div class="donut-row">
+        <div class="donut" style="background:${donutGradient([
+          {color:'var(--accent-2)', pct:p.home_win},
+          {color:'var(--warn)', pct:p.draw},
+          {color:'var(--bad)', pct:p.away_win},
+        ])}"><div class="center">${escapeHtml(p.exact_score)}<br>счёт</div></div>
+        <div class="legend">
+          <div class="legend-row"><span class="legend-dot" style="background:var(--accent-2)"></span><span class="legend-label">П1 ${escapeHtml(p.home_name)}</span><span class="legend-val">${p.home_win}%</span></div>
+          <div class="legend-row"><span class="legend-dot" style="background:var(--warn)"></span><span class="legend-label">Ничья</span><span class="legend-val">${p.draw}%</span></div>
+          <div class="legend-row"><span class="legend-dot" style="background:var(--bad)"></span><span class="legend-label">П2 ${escapeHtml(p.away_name)}</span><span class="legend-val">${p.away_win}%</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h3>🛡 Двойной шанс</h3>
+      <div class="bar-row"><div class="lbl"><span>1X (П1 или ничья)</span><b>${p.dc_1x}%</b></div><div class="bar-track"><div class="bar-fill" style="width:${p.dc_1x}%"></div></div></div>
+      <div class="bar-row"><div class="lbl"><span>X2 (ничья или П2)</span><b>${p.dc_x2}%</b></div><div class="bar-track"><div class="bar-fill" style="width:${p.dc_x2}%"></div></div></div>
+      <div class="bar-row"><div class="lbl"><span>12 (без ничьей)</span><b>${p.dc_12}%</b></div><div class="bar-track"><div class="bar-fill" style="width:${p.dc_12}%"></div></div></div>
+    </div>
+
+    <div class="section">
+      <h3>⚽ Голы и тоталы</h3>
+      <div class="stat-grid">
+        <div class="stat-box"><div class="k">Ожидаемый тотал</div><div class="v">${p.total_expected}</div></div>
+        <div class="stat-box"><div class="k">xG индивидуально</div><div class="v">${p.home_individual} — ${p.away_individual}</div></div>
+      </div>
+      <div style="height:12px"></div>
+      <div class="bar-row"><div class="lbl"><span>Больше 2.5</span><b>${p.over_2_5}%</b></div><div class="bar-track"><div class="bar-fill" style="width:${p.over_2_5}%"></div></div></div>
+      <div class="bar-row"><div class="lbl"><span>Обе забьют (BTTS)</span><b>${p.btts}%</b></div><div class="bar-track"><div class="bar-fill" style="width:${p.btts}%"></div></div></div>
+    </div>
+
+    <div class="section">
+      <h3>📐 Фора · 🚩 Угловые · 🟨 Карточки</h3>
+      <div class="stat-grid">
+        <div class="stat-box"><div class="k">Азиатский гандикап</div><div class="v" style="font-size:13px">${escapeHtml(p.handicap)}</div></div>
+        <div class="stat-box"><div class="k">Угловые (оценка)</div><div class="v">~${(p.corners_home+p.corners_away).toFixed(1)}</div></div>
+        <div class="stat-box"><div class="k">Карточки (оценка)</div><div class="v">~${(p.cards_home+p.cards_away).toFixed(1)}</div></div>
+        <div class="stat-box"><div class="k">Уверенность модели</div><div class="v" style="font-size:13px">${Math.max(p.home_win,p.draw,p.away_win)>=60?'🔥 Высокая':Math.max(p.home_win,p.draw,p.away_win)>=45?'👍 Средняя':'🤔 Низкая'}</div></div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h3>📋 Форма (последние 5 игр)</h3>
+      <div class="form-row"><div class="name">${escapeHtml(p.home_name)}</div>${formDots(p.home_form)}</div>
+      <div class="form-row"><div class="name">${escapeHtml(p.away_name)}</div>${formDots(p.away_form)}</div>
+    </div>
+
+    <div class="section">
+      <h3>💡 Рекомендации модели</h3>
+      <div class="reco">
+        <div class="reco-card"><div class="k">🔒 Самый надёжный</div><div class="v">${escapeHtml(p.safest_bet)}</div></div>
+        <div class="reco-card"><div class="k">💰 По соотношению</div><div class="v">${escapeHtml(p.best_value_bet)}</div></div>
+      </div>
+      <div style="height:12px"></div>
+      <span class="quality-badge ${q.cls}">${q.label}</span>
+      <div style="font-size:11.5px;color:var(--hint);margin-top:6px;">${q.sub} — чем их больше, тем точнее оценка атаки/защиты команды.</div>
+    </div>
+  `;
+}
+
+async function loadOdds(){
+  const body = document.getElementById('detailBody');
+  body.innerHTML = skeletons(2);
+  const m = state.currentMatch;
+  try{
+    const data = await api(`/api/match/${encodeURIComponent(m.id)}/odds`);
+    renderOdds(data);
+  }catch(e){
+    body.innerHTML = `<div class="empty-state"><div class="emoji">📭</div><h3>Коэффициенты не найдены</h3><p>${escapeHtml(e.message)}</p></div>`;
+  }
+}
+
+function renderOdds(data){
+  const body = document.getElementById('detailBody');
+  if (!data.rows.length){
+    body.innerHTML = `<div class="empty-state"><div class="emoji">📭</div><h3>Букмекеры пока не открыли линию</h3><p>Загляните позже — коэффициенты появляются ближе к матчу.</p></div>`;
+    return;
+  }
+  const best = data.best;
+  const rows = data.rows.map(r=>`
+    <tr>
+      <td class="bm">${escapeHtml(r.bookmaker)}</td>
+      <td class="${r.home===best.home?'best':''}">${r.home ?? '—'}</td>
+      <td class="${r.draw && r.draw===best.draw?'best':''}">${r.draw ?? '—'}</td>
+      <td class="${r.away===best.away?'best':''}">${r.away ?? '—'}</td>
+    </tr>`).join('');
+
+  let impliedHtml = '';
+  if (data.implied_probabilities){
+    const ip = data.implied_probabilities;
+    impliedHtml = `
+      <div class="section">
+        <h3>🎯 Подразумеваемые вероятности <span style="text-transform:none;color:var(--hint)">(маржа убрана)</span></h3>
+        <div class="bar-row"><div class="lbl"><span>П1</span><b>${ip.home_pct}%</b></div><div class="bar-track"><div class="bar-fill" style="width:${ip.home_pct}%"></div></div></div>
+        ${ip.draw_pct!=null?`<div class="bar-row"><div class="lbl"><span>X</span><b>${ip.draw_pct}%</b></div><div class="bar-track"><div class="bar-fill" style="width:${ip.draw_pct}%"></div></div></div>`:''}
+        <div class="bar-row"><div class="lbl"><span>П2</span><b>${ip.away_pct}%</b></div><div class="bar-track"><div class="bar-fill" style="width:${ip.away_pct}%"></div></div></div>
+        <div class="margin-note"><span>Маржа букмекера (лучшая линия)</span><b style="font-family:var(--mono)">${ip.margin_pct}%</b></div>
+      </div>`;
+  }
+
+  body.innerHTML = `
+    <div class="section">
+      <h3>📈 Коэффициенты букмекеров</h3>
+      <table class="odds-table">
+        <thead><tr><th>Букмекер</th><th>П1</th><th>X</th><th>П2</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+      <div class="margin-note"><span>🔥 Лучшая линия выделена зелёным</span></div>
+    </div>
+    ${impliedHtml}
+  `;
+}
+
+// ---------- Profile ----------
+async function refreshMe(){
+  try{
+    state.me = await api('/api/me');
+    document.getElementById('planPill').textContent = state.me.plan.toUpperCase();
+    if (document.getElementById('screenProfile').classList.contains('hidden')===false) renderProfile();
+  }catch(e){}
+}
+
+let profileFilter = 'history';
+async function renderProfileScreen(){
+  const root = document.getElementById('screenProfile');
+  root.innerHTML = skeletons(3);
+  await refreshMe();
+  renderProfile();
+}
+
+async function renderProfile(){
+  const root = document.getElementById('screenProfile');
+  const me = state.me;
+  if (!me){ root.innerHTML = skeletons(3); return; }
+  const used = me.daily_used, limit = me.daily_limit;
+  const pct = Math.min(100, Math.round(used/limit*100));
+  const initials = (me.first_name||'?').slice(0,1).toUpperCase();
+
+  root.innerHTML = `
+    <div class="section">
+      <div class="profile-head">
+        <div class="avatar">${initials}</div>
+        <div>
+          <div class="profile-name">${escapeHtml(me.first_name||'Пользователь')}</div>
+          <div class="profile-id">ID ${me.id} · с ${ (me.registered_at||'').slice(0,10) }</div>
+        </div>
+      </div>
+      <div class="limit-bar-wrap">
+        <div class="limit-bar-track"><div class="limit-bar-fill ${used>=limit?'full':''}" style="width:${pct}%"></div></div>
+        <div class="limit-label"><span>Прогнозов сегодня</span><b>${used}/${limit}</b></div>
+      </div>
+      <div style="margin-top:10px;font-size:12px;color:var(--hint)">Тариф: <b style="color:var(--text)">${me.plan.toUpperCase()}</b> · Всего прогнозов: <b style="color:var(--text)">${me.predictions_made_total}</b></div>
+    </div>
+
+    <div class="filters-row">
+      <button class="filter-chip ${profileFilter==='history'?'active':''}" data-f="history">📈 История</button>
+      <button class="filter-chip ${profileFilter==='favorites'?'active':''}" data-f="favorites">❤️ Избранное</button>
+    </div>
+    <div id="profileBody">${skeletons(2)}</div>
+  `;
+  root.querySelectorAll('.filter-chip').forEach(b=>{
+    b.onclick = ()=>{ haptic('select'); profileFilter = b.dataset.f; renderProfile(); };
+  });
+  if (profileFilter === 'history') loadHistory(); else loadFavoritesList();
+}
+
+async function loadHistory(){
+  const el = document.getElementById('profileBody');
+  try{
+    const data = await api('/api/history');
+    if (!data.history.length){
+      el.innerHTML = `<div class="empty-state"><div class="emoji">📋</div><h3>История пуста</h3><p>Сделайте первый прогноз — он появится здесь.</p></div>`;
+      return;
+    }
+    el.innerHTML = data.history.map(h=>`
+      <div class="hist-item">
+        <div class="top-row"><span>${escapeHtml(h.home)} — ${escapeHtml(h.away)}</span><span>${(h.time||'').slice(11,16)}</span></div>
+        <div class="sub-row"><span>П1 ${h.home_win}% · X ${h.draw}% · П2 ${h.away_win}%</span><span>${escapeHtml(h.safest_bet||'')}</span></div>
+      </div>`).join('');
+  }catch(e){
+    el.innerHTML = `<div class="empty-state"><p>${escapeHtml(e.message)}</p></div>`;
+  }
+}
+
+async function loadFavoritesList(){
+  const el = document.getElementById('profileBody');
+  try{
+    const data = await api('/api/favorites');
+    if (!data.favorites.length){
+      el.innerHTML = `<div class="empty-state"><div class="emoji">💔</div><h3>Избранное пусто</h3><p>Добавляйте матчи через ☆ на странице прогноза.</p></div>`;
+      return;
+    }
+    el.innerHTML = data.favorites.map(f=>`
+      <div class="fav-item" data-id="${f.id}">
+        <div class="fav-bg">Удалить</div>
+        <div style="position:relative;background:var(--bg-secondary);width:100%;padding:2px 0;">
+          <b>${f.home_team?escapeHtml(f.home_team)+' — '+escapeHtml(f.away_team):'Матч устарел'}</b>
+        </div>
+      </div>`).join('');
+    el.querySelectorAll('.fav-item').forEach(attachSwipeToDelete);
+  }catch(e){
+    el.innerHTML = `<div class="empty-state"><p>${escapeHtml(e.message)}</p></div>`;
+  }
+}
+
+function attachSwipeToDelete(item){
+  let startX = 0, dx = 0, dragging = false;
+  const inner = item.querySelector('div[style]');
+  item.addEventListener('touchstart', e=>{ startX = e.touches[0].clientX; dragging = true; }, {passive:true});
+  item.addEventListener('touchmove', e=>{
+    if (!dragging) return;
+    dx = Math.min(0, e.touches[0].clientX - startX);
+    inner.style.transform = `translateX(${dx}px)`;
+  }, {passive:true});
+  item.addEventListener('touchend', async ()=>{
+    dragging = false;
+    if (dx < -80){
+      haptic('error');
+      try{
+        await api(`/api/favorites/${encodeURIComponent(item.dataset.id)}/toggle`, {method:'POST'});
+        item.style.maxHeight = item.offsetHeight + 'px';
+        requestAnimationFrame(()=>{ item.style.transition='all .25s'; item.style.maxHeight='0'; item.style.opacity='0'; item.style.marginBottom='0'; });
+        setTimeout(()=>item.remove(), 260);
+      }catch(e){ toast('Не удалось удалить'); inner.style.transform=''; }
+    } else {
+      inner.style.transition = 'transform .2s';
+      inner.style.transform = '';
+      setTimeout(()=>inner.style.transition='', 200);
+    }
+    dx = 0;
+  });
+}
+
+// ---------- Plans ----------
+const PLAN_INFO = [
+  {key:'free', name:'Free', price:'0 ₽', limit:1, features:['1 прогноз в день','Базовые коэффициенты']},
+  {key:'starter', name:'Starter', price:'150 ⭐ / мес', limit:3, features:['3 прогноза в день','Сравнение коэффициентов','История прогнозов']},
+  {key:'pro', name:'Pro', price:'300 ⭐ / мес', limit:8, features:['8 прогнозов в день','Угловые и карточки','Приоритетная поддержка']},
+  {key:'premium', name:'Premium', price:'450 ⭐ / мес', limit:15, features:['15 прогнозов в день','Все виды спорта','Ранний доступ к новым лигам']},
+];
+
+async function renderPlansScreen(){
+  const root = document.getElementById('screenPlans');
+  root.innerHTML = skeletons(3);
+  await refreshMe();
+  const current = state.me?.plan || 'free';
+  root.innerHTML = PLAN_INFO.map(p=>`
+    <div class="plan-card ${p.key===current?'current':''}">
+      ${p.key===current?'<div class="cur-badge">ТЕКУЩИЙ</div>':''}
+      <div class="ph"><span class="pname">${p.name}</span><span class="pprice">${p.price}</span></div>
+      <ul>${p.features.map(f=>`<li>${f}</li>`).join('')}</ul>
+      ${p.key==='free'||p.key===current ? '' : `<button class="btn block" data-plan="${p.key}">Купить за ${p.price.split(' ')[0]} ⭐</button>`}
+    </div>
+  `).join('') + `<div style="font-size:11.5px;color:var(--hint);padding:6px 4px 0;">Оплата через Telegram Stars — без привязки карты, прямо внутри Telegram.</div>`;
+
+  root.querySelectorAll('button[data-plan]').forEach(btn=>{
+    btn.onclick = async ()=>{
+      const plan = btn.dataset.plan;
+      btn.disabled = true; btn.textContent = 'Открываем оплату…';
+      try{
+        const res = await api('/api/subscribe', {method:'POST', body: JSON.stringify({plan})});
+        if (tg?.openInvoice){
+          tg.openInvoice(res.invoice_link, (status)=>{
+            if (status === 'paid'){ haptic('success'); toast('Подписка активирована 🎉'); refreshMe(); renderPlansScreen(); }
+            else if (status === 'failed'){ haptic('error'); toast('Оплата не прошла'); }
+          });
+        } else {
+          window.open(res.invoice_link, '_blank');
+        }
+      }catch(e){
+        toast('Ошибка: ' + e.message);
+      }finally{
+        btn.disabled = false;
+      }
+    };
+  });
+}
+
+// ---------- Nav ----------
+function switchScreen(name){
+  ['matches','detail','profile','plans'].forEach(s=>{
+    document.getElementById('screen' + s.charAt(0).toUpperCase()+s.slice(1)).classList.toggle('hidden', s!==name);
+  });
+  document.querySelectorAll('.nav-btn').forEach(b=>{
+    const map = {matches:'matches', profile:'profile', plans:'plans'};
+    b.classList.toggle('active', map[b.dataset.tab]===name || (name==='detail' && b.dataset.tab==='matches'));
+  });
+  if (name==='profile') renderProfileScreen();
+  if (name==='plans') renderPlansScreen();
+}
+
+document.querySelectorAll('.nav-btn').forEach(b=>{
+  b.onclick = ()=>{ haptic('select'); switchScreen(b.dataset.tab); };
+});
+
+// Нативный жест "назад" Telegram BackButton — используем на экране деталей матча
+tg?.BackButton?.onClick(()=>{
+  if (!document.getElementById('screenDetail').classList.contains('hidden')){
+    switchScreen('matches');
+  }
+});
+function syncBackButton(){
+  const onDetail = !document.getElementById('screenDetail').classList.contains('hidden');
+  if (onDetail) tg?.BackButton?.show(); else tg?.BackButton?.hide();
+}
+const _origSwitch = switchScreen;
+switchScreen = function(name){ _origSwitch(name); syncBackButton(); };
+
+// ---------- Init ----------
+renderSportTabs();
+renderDaysRow();
+loadMatches();
+refreshMe();
+
+})();
+</script>
+</body>
+</html>
